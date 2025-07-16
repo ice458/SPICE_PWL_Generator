@@ -104,14 +104,16 @@ class PWLTool:
         self.y_min_var = tk.DoubleVar(value=self.y_min)
 
         ttk.Label(scroll_frame, text="Max:").pack()
-        y_max_spin = ttk.Spinbox(scroll_frame, from_=-1000, to=1000, increment=1,
+        y_max_spin = ttk.Spinbox(scroll_frame, from_=-1e6, to=1e6, increment=0.1,
                                 textvariable=self.y_max_var, width=8, command=self.update_range)
         y_max_spin.pack()
+        y_max_spin.bind('<Return>', lambda e: self.update_range())
 
         ttk.Label(scroll_frame, text="Min:").pack()
-        y_min_spin = ttk.Spinbox(scroll_frame, from_=-1000, to=1000, increment=1,
+        y_min_spin = ttk.Spinbox(scroll_frame, from_=-1e6, to=1e6, increment=0.1,
                                 textvariable=self.y_min_var, width=8, command=self.update_range)
         y_min_spin.pack()
+        y_min_spin.bind('<Return>', lambda e: self.update_range())
 
         # X軸スクロール
         ttk.Label(scroll_frame, text="X Range").pack(pady=(20, 0))
@@ -119,22 +121,30 @@ class PWLTool:
         self.x_min_var = tk.DoubleVar(value=self.x_min)
 
         ttk.Label(scroll_frame, text="Max:").pack()
-        x_max_spin = ttk.Spinbox(scroll_frame, from_=0, to=1000, increment=1,
+        x_max_spin = ttk.Spinbox(scroll_frame, from_=0, to=1e6, increment=0.1,
                                 textvariable=self.x_max_var, width=8, command=self.update_range)
         x_max_spin.pack()
+        x_max_spin.bind('<Return>', lambda e: self.update_range())
 
         ttk.Label(scroll_frame, text="Min:").pack()
-        x_min_spin = ttk.Spinbox(scroll_frame, from_=0, to=1000, increment=1,
+        x_min_spin = ttk.Spinbox(scroll_frame, from_=0, to=1e6, increment=0.1,
                                 textvariable=self.x_min_var, width=8, command=self.update_range)
         x_min_spin.pack()
+        x_min_spin.bind('<Return>', lambda e: self.update_range())
 
         ttk.Button(scroll_frame, text="Auto Scale", command=self.auto_scale).pack(pady=10)
+        ttk.Button(scroll_frame, text="Zoom In", command=self.zoom_in).pack(pady=2)
+        ttk.Button(scroll_frame, text="Zoom Out", command=self.zoom_out).pack(pady=2)
+        ttk.Button(scroll_frame, text="Pan Left", command=self.pan_left).pack(pady=2)
+        ttk.Button(scroll_frame, text="Pan Right", command=self.pan_right).pack(pady=2)
+        ttk.Button(scroll_frame, text="Pan Up", command=self.pan_up).pack(pady=2)
+        ttk.Button(scroll_frame, text="Pan Down", command=self.pan_down).pack(pady=2)
 
         # 下部情報パネル
         info_frame = ttk.Frame(main_frame)
         info_frame.pack(fill=tk.X, pady=(5, 0))
 
-        self.info_label = ttk.Label(info_frame, text="Click to select points, double-click to add points, drag to move points, right-click to deselect")
+        self.info_label = ttk.Label(info_frame, text="Click to select, double-click to add, drag to move, right-click to deselect | Ctrl+/- zoom, arrows pan, Ctrl+0 auto-scale")
         self.info_label.pack(side=tk.LEFT)
 
         # PWL出力テキストエリア
@@ -145,6 +155,20 @@ class PWLTool:
         self.canvas.mpl_connect('button_press_event', self.on_click)
         self.canvas.mpl_connect('motion_notify_event', self.on_motion)
         self.canvas.mpl_connect('button_release_event', self.on_release)
+        self.canvas.mpl_connect('scroll_event', self.on_scroll)
+
+        # キーボードショートカット
+        self.root.bind('<Control-plus>', lambda e: self.zoom_in())
+        self.root.bind('<Control-minus>', lambda e: self.zoom_out())
+        self.root.bind('<Control-equal>', lambda e: self.zoom_in())  # +キーのため
+        self.root.bind('<Left>', lambda e: self.pan_left())
+        self.root.bind('<Right>', lambda e: self.pan_right())
+        self.root.bind('<Up>', lambda e: self.pan_up())
+        self.root.bind('<Down>', lambda e: self.pan_down())
+        self.root.bind('<Control-0>', lambda e: self.auto_scale())
+
+        # フォーカスを設定してキーボードイベントを受け取れるようにする
+        self.root.focus_set()
 
     def update_info_label(self):
         if self.selected_point is not None:
@@ -160,7 +184,7 @@ class PWLTool:
 
             self.info_label.config(text=f"Selected Point {self.selected_point + 1}: ({t_display:.3f} {self.time_unit}, {v_display:.3f} {self.value_unit}) - Press Delete Point to remove")
         else:
-            self.info_label.config(text="Click to select points, double-click to add points, drag to move points, right-click to deselect")
+            self.info_label.config(text="Click to select, double-click to add, drag to move, right-click to deselect | Ctrl+/- zoom, arrows pan, Ctrl+0 auto-scale")
 
     def on_source_type_change(self, event=None):
         self.source_type = self.source_var.get()
@@ -187,6 +211,88 @@ class PWLTool:
         self.y_min = self.y_min_var.get()
         self.y_max = self.y_max_var.get()
         self.update_plot()
+
+    def zoom_in(self):
+        """ズームイン（50%縮小）"""
+        x_center = (self.x_min + self.x_max) / 2
+        y_center = (self.y_min + self.y_max) / 2
+        x_range = (self.x_max - self.x_min) * 0.25  # 50%縮小
+        y_range = (self.y_max - self.y_min) * 0.25
+
+        self.x_min_var.set(x_center - x_range)
+        self.x_max_var.set(x_center + x_range)
+        self.y_min_var.set(y_center - y_range)
+        self.y_max_var.set(y_center + y_range)
+        self.update_range()
+
+    def zoom_out(self):
+        """ズームアウト（2倍拡大）"""
+        x_center = (self.x_min + self.x_max) / 2
+        y_center = (self.y_min + self.y_max) / 2
+        x_range = (self.x_max - self.x_min) * 1.0  # 2倍拡大
+        y_range = (self.y_max - self.y_min) * 1.0
+
+        self.x_min_var.set(x_center - x_range)
+        self.x_max_var.set(x_center + x_range)
+        self.y_min_var.set(y_center - y_range)
+        self.y_max_var.set(y_center + y_range)
+        self.update_range()
+
+    def pan_left(self):
+        """左にパン（25%移動）"""
+        x_range = self.x_max - self.x_min
+        shift = x_range * 0.25
+        self.x_min_var.set(self.x_min - shift)
+        self.x_max_var.set(self.x_max - shift)
+        self.update_range()
+
+    def pan_right(self):
+        """右にパン（25%移動）"""
+        x_range = self.x_max - self.x_min
+        shift = x_range * 0.25
+        self.x_min_var.set(self.x_min + shift)
+        self.x_max_var.set(self.x_max + shift)
+        self.update_range()
+
+    def pan_up(self):
+        """上にパン（25%移動）"""
+        y_range = self.y_max - self.y_min
+        shift = y_range * 0.25
+        self.y_min_var.set(self.y_min + shift)
+        self.y_max_var.set(self.y_max + shift)
+        self.update_range()
+
+    def pan_down(self):
+        """下にパン（25%移動）"""
+        y_range = self.y_max - self.y_min
+        shift = y_range * 0.25
+        self.y_min_var.set(self.y_min - shift)
+        self.y_max_var.set(self.y_max - shift)
+        self.update_range()
+
+    def on_scroll(self, event):
+        """マウスホイールでのズーム"""
+        if event.inaxes != self.ax:
+            return
+
+        # ズーム倍率
+        zoom_factor = 0.9 if event.button == 'up' else 1.1
+
+        # マウス位置を中心にズーム
+        x_center = event.xdata
+        y_center = event.ydata
+
+        if x_center is None or y_center is None:
+            return
+
+        x_range = (self.x_max - self.x_min) * zoom_factor / 2
+        y_range = (self.y_max - self.y_min) * zoom_factor / 2
+
+        self.x_min_var.set(x_center - x_range)
+        self.x_max_var.set(x_center + x_range)
+        self.y_min_var.set(y_center - y_range)
+        self.y_max_var.set(y_center + y_range)
+        self.update_range()
 
     def auto_scale(self):
         if not self.pwl_points:
