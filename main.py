@@ -135,6 +135,8 @@ class PWLTool:
                                 textvariable=self.x_min_var, width=8, command=self.update_range)
         x_min_spin.pack()
         x_min_spin.bind('<Return>', lambda e: self.update_range())
+        # X軸最小値の検証を追加
+        self.x_min_var.trace('w', self.validate_x_min)
 
         ttk.Button(scroll_frame, text="Auto Scale", command=self.auto_scale).pack(pady=10)
         ttk.Button(scroll_frame, text="Zoom In", command=self.zoom_in).pack(pady=2)
@@ -174,6 +176,15 @@ class PWLTool:
         # フォーカスを設定してキーボードイベントを受け取れるようにする
         self.root.focus_set()
 
+    def validate_x_min(self, *args):
+        """X軸最小値が負にならないように制限"""
+        try:
+            value = self.x_min_var.get()
+            if value < 0:
+                self.x_min_var.set(0)
+        except:
+            pass
+
     def update_info_label(self):
         if self.selected_point is not None:
             time_scale = self.time_prefixes[self.time_unit]
@@ -210,10 +221,15 @@ class PWLTool:
         self.update_plot()
 
     def update_range(self):
-        self.x_min = self.x_min_var.get()
+        self.x_min = max(0, self.x_min_var.get())  # 時間軸の最小値を0以上に制限
         self.x_max = self.x_max_var.get()
         self.y_min = self.y_min_var.get()
         self.y_max = self.y_max_var.get()
+
+        # X軸の最小値が修正された場合、変数も更新
+        if self.x_min != self.x_min_var.get():
+            self.x_min_var.set(self.x_min)
+
         self.update_plot()
 
     def zoom_in(self):
@@ -246,8 +262,16 @@ class PWLTool:
         """左にパン（25%移動）"""
         x_range = self.x_max - self.x_min
         shift = x_range * 0.25
-        self.x_min_var.set(self.x_min - shift)
-        self.x_max_var.set(self.x_max - shift)
+        new_x_min = self.x_min - shift
+        new_x_max = self.x_max - shift
+
+        # 時間軸が負にならないように制限
+        if new_x_min < 0:
+            new_x_max = new_x_max - new_x_min  # 差分を調整
+            new_x_min = 0
+
+        self.x_min_var.set(new_x_min)
+        self.x_max_var.set(new_x_max)
         self.update_range()
 
     def pan_right(self):
@@ -298,14 +322,31 @@ class PWLTool:
         elif hasattr(event, 'key') and event.key == 'shift':
             # Shift+ホイール: 横軸のみズーム
             x_range = (self.x_max - self.x_min) * zoom_factor / 2
-            self.x_min_var.set(x_center - x_range)
-            self.x_max_var.set(x_center + x_range)
+            new_x_min = x_center - x_range
+            new_x_max = x_center + x_range
+
+            # 時間軸が負にならないように制限
+            if new_x_min < 0:
+                new_x_max = new_x_max - new_x_min
+                new_x_min = 0
+
+            self.x_min_var.set(new_x_min)
+            self.x_max_var.set(new_x_max)
         else:
             # 通常のホイール: 両軸ズーム
             x_range = (self.x_max - self.x_min) * zoom_factor / 2
             y_range = (self.y_max - self.y_min) * zoom_factor / 2
-            self.x_min_var.set(x_center - x_range)
-            self.x_max_var.set(x_center + x_range)
+
+            new_x_min = x_center - x_range
+            new_x_max = x_center + x_range
+
+            # 時間軸が負にならないように制限
+            if new_x_min < 0:
+                new_x_max = new_x_max - new_x_min
+                new_x_min = 0
+
+            self.x_min_var.set(new_x_min)
+            self.x_max_var.set(new_x_max)
             self.y_min_var.set(y_center - y_range)
             self.y_max_var.set(y_center + y_range)
 
@@ -445,9 +486,18 @@ class PWLTool:
                 dx = self.pan_start[0] - event.xdata
                 dy = self.pan_start[1] - event.ydata
 
+                # 新しい表示範囲を計算
+                new_x_min = self.x_min + dx
+                new_x_max = self.x_max + dx
+
+                # 時間軸が負にならないように制限
+                if new_x_min < 0:
+                    new_x_max = new_x_max - new_x_min
+                    new_x_min = 0
+
                 # 表示範囲を移動
-                self.x_min_var.set(self.x_min + dx)
-                self.x_max_var.set(self.x_max + dx)
+                self.x_min_var.set(new_x_min)
+                self.x_max_var.set(new_x_max)
                 self.y_min_var.set(self.y_min + dy)
                 self.y_max_var.set(self.y_max + dy)
                 self.update_range()
@@ -473,6 +523,9 @@ class PWLTool:
         # 単位系を戻す
         real_time = x * time_scale
         real_value = y * value_scale
+
+        # 時間が負にならないように制限
+        real_time = max(0, real_time)
 
         # 時間順に挿入
         insert_index = 0
@@ -522,6 +575,9 @@ class PWLTool:
         # 単位系を戻す
         real_time = x * time_scale
         real_value = y * value_scale
+
+        # 時間が負にならないように制限
+        real_time = max(0, real_time)
 
         self.pwl_points[self.selected_point] = (real_time, real_value)
         self.pwl_points.sort(key=lambda x: x[0])  # 時間順にソート
