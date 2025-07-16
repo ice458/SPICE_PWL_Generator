@@ -191,6 +191,13 @@ class PWLTool:
         self.pwl_text = tk.Text(info_frame, height=3, width=50)
         self.pwl_text.pack(side=tk.RIGHT, padx=5)
 
+        # テキストエリアの変更を監視
+        self.pwl_text.bind('<KeyRelease>', self.on_pwl_text_change)
+        self.pwl_text.bind('<Button-1>', self.on_pwl_text_focus)  # フォーカス時
+
+        # PWLテキスト解析用のフラグ
+        self.updating_from_plot = False  # プロットからの更新中かどうか
+
         # マウスイベントのバインド
         self.canvas.mpl_connect('button_press_event', self.on_click)
         self.canvas.mpl_connect('motion_notify_event', self.on_motion)
@@ -778,6 +785,81 @@ class PWLTool:
 
         self.update_plot()
 
+    def on_pwl_text_focus(self, event):
+        """PWLテキストエリアにフォーカスした時の処理"""
+        # 自動更新を一時停止する場合などに使用
+        pass
+
+    def on_pwl_text_change(self, event):
+        """PWLテキストエリアの内容が変更された時の処理"""
+        if self.updating_from_plot:
+            return  # プロットからの更新中は処理しない
+
+        # 遅延実行でパースを行う（連続入力に対応）
+        if hasattr(self, '_text_update_timer'):
+            self.root.after_cancel(self._text_update_timer)
+
+        self._text_update_timer = self.root.after(500, self.parse_pwl_text)  # 500ms後に実行
+
+    def parse_pwl_text(self):
+        """PWLテキストを解析してグラフを更新"""
+        try:
+            pwl_text = self.pwl_text.get(1.0, tk.END).strip()
+
+            # PWLコマンドの解析
+            if not pwl_text or pwl_text == "Need at least 2 points":
+                return
+
+            # PWL(...)形式から中身を抽出
+            if pwl_text.startswith('PWL(') and pwl_text.endswith(')'):
+                content = pwl_text[4:-1]  # PWL( と ) を除去
+            else:
+                # PWL(...)がない場合は、そのまま数値列として解釈
+                content = pwl_text
+
+            # 数値ペアを抽出
+            parts = content.split()
+            if len(parts) < 4 or len(parts) % 2 != 0:
+                # 最低2点必要、かつペア数でなければエラー
+                return
+
+            # 新しいPWL点を作成
+            new_points = []
+            for i in range(0, len(parts), 2):
+                try:
+                    time_val = float(parts[i])
+                    voltage_val = float(parts[i + 1]);
+
+                    # 時間が負でないことを確認
+                    if time_val < 0:
+                        time_val = 0;
+
+                    new_points.append((time_val, voltage_val))
+                except ValueError:
+                    # 数値変換エラーの場合は処理を中断
+                    return
+
+            # 時間順にソート
+            new_points.sort(key=lambda x: x[0])
+
+            # 最低2点必要
+            if len(new_points) < 2:
+                return
+
+            # PWL点を更新
+            self.pwl_points = new_points
+            self.selected_point = None  # 選択をクリア
+
+            # グリッド拘束が有効な場合は適用
+            if self.grid_snap_enabled:
+                self.snap_all_points_to_grid()
+            else:
+                self.update_plot()
+
+        except Exception as e:
+            # エラーが発生した場合は何もしない（無効な入力として扱う）
+            pass
+
     def generate_pwl_text(self):
         if len(self.pwl_points) < 2:
             pwl_cmd = "Need at least 2 points"
@@ -793,8 +875,41 @@ class PWLTool:
             source_name = "V" if self.source_type == "Voltage" else "I"
             pwl_cmd = f"PWL({' '.join(pwl_pairs)})"
 
-        self.pwl_text.delete(1.0, tk.END)
-        self.pwl_text.insert(tk.END, pwl_cmd)
+        # プロットからの更新フラグを立てる
+        self.updating_from_plot = True
+
+        # 現在のテキストと同じ場合は更新しない（カーソル位置保持のため）
+        current_text = self.pwl_text.get(1.0, tk.END).strip()
+        if current_text != pwl_cmd:
+            # カーソル位置を保存
+            cursor_pos = self.pwl_text.index(tk.INSERT)
+
+            # テキストを更新
+            self.pwl_text.delete(1.0, tk.END)
+            self.pwl_text.insert(tk.END, pwl_cmd)
+
+            # テキストエリアにフォーカスがある場合のみカーソル位置を復元
+            if self.pwl_text == self.root.focus_get():
+                try:
+                    # 新しいテキストの長さを超えない範囲でカーソル位置を復元
+                    new_length = len(pwl_cmd)
+                    cursor_row, cursor_col = map(int, cursor_pos.split('.'))
+
+                    # 行数チェック（PWLテキストは通常1行なので1行目に制限）
+                    if cursor_row > 1:
+                        cursor_row = 1
+
+                    # 列数チェック
+                    if cursor_col > new_length:
+                        cursor_col = new_length
+
+                    # カーソル位置を復元
+                    self.pwl_text.mark_set(tk.INSERT, f"{cursor_row}.{cursor_col}")
+                except:
+                    # エラーが発生した場合は末尾に設定
+                    self.pwl_text.mark_set(tk.INSERT, tk.END)
+
+        self.updating_from_plot = False
 
     def generate_pwl(self):
         self.generate_pwl_text()
@@ -904,6 +1019,10 @@ class PWLTool:
 
         # Entryにフォーカスがある場合は処理しない
         if isinstance(focused_widget, (tk.Entry, ttk.Entry)):
+            return False
+
+        # Comboboxにフォーカスがある場合は処理しない
+        if isinstance(focused_widget, ttk.Combobox):
             return False
 
         # その他の場合は処理する
