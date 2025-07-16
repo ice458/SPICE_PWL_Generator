@@ -824,6 +824,58 @@ class PWLTool:
             self.panning = False
             self.pan_start = None
 
+    def find_unique_time(self, target_time, exclude_index=None):
+        """重複しない時間を見つける"""
+        time_scale = self.time_prefixes[self.time_unit]
+        min_offset = 1e-6 * time_scale  # 最小オフセット（現在の時間単位の0.001倍）
+
+        # グリッド拘束が有効な場合、グリッドサイズの半分を最小オフセットとする
+        if self.grid_snap_enabled and self.time_grid_size > 0:
+            grid_size_in_base = self.time_grid_size * time_scale
+            min_offset = max(
+                min_offset, grid_size_in_base * 0.0001
+            )  # グリッドサイズの0.1%
+
+        # 既存の時間リストを取得（除外するインデックスがあれば除く）
+        existing_times = []
+        for i, (t, v) in enumerate(self.pwl_points):
+            if exclude_index is None or i != exclude_index:
+                existing_times.append(t)
+
+        # 目標時間が既存の時間と重複していないかチェック
+        current_time = target_time
+        offset_direction = 1  # 1なら右方向、-1なら左方向
+        max_attempts = 100  # 無限ループ防止
+
+        for attempt in range(max_attempts):
+            # 現在時間が他の点と重複していないかチェック
+            is_duplicate = False
+            for existing_time in existing_times:
+                if abs(current_time - existing_time) < min_offset / 2:
+                    is_duplicate = True
+                    break
+
+            if not is_duplicate and current_time >= 0:
+                return current_time
+
+            # 重複している場合は少しずらす
+            if offset_direction > 0:
+                current_time = target_time + min_offset * attempt
+                if current_time < 0:  # 負になる場合は右方向に切り替え
+                    offset_direction = -1
+                    current_time = target_time
+            else:
+                current_time = target_time - min_offset * attempt
+                if current_time < 0:  # 負になる場合は右方向の大きなオフセット
+                    current_time = target_time + min_offset * (attempt + 1)
+
+        # 最終的に見つからない場合は、最大時間の後に配置
+        if existing_times:
+            max_time = max(existing_times)
+            return max_time + min_offset
+        else:
+            return max(0, target_time)
+
     def add_point_at(self, x, y):
         time_scale = self.time_prefixes[self.time_unit]
         if self.source_type == "Voltage":
@@ -845,15 +897,18 @@ class PWLTool:
         # 時間が負にならないように制限
         real_time = max(0, real_time)
 
+        # 重複しない時間を見つける
+        unique_time = self.find_unique_time(real_time)
+
         # 時間順に挿入
         insert_index = 0
         for i, (t, v) in enumerate(self.pwl_points):
-            if real_time > t:
+            if unique_time > t:
                 insert_index = i + 1
             else:
                 break
 
-        self.pwl_points.insert(insert_index, (real_time, real_value))
+        self.pwl_points.insert(insert_index, (unique_time, real_value))
         self.update_plot()
 
     def add_point(self):
@@ -865,7 +920,10 @@ class PWLTool:
         else:
             new_time = 0
 
-        self.pwl_points.append((new_time, 0))
+        # 重複しない時間を見つける
+        unique_time = self.find_unique_time(new_time)
+
+        self.pwl_points.append((unique_time, 0))
         self.pwl_points.sort(key=lambda x: x[0])  # 時間順にソート
         self.update_plot()
 
@@ -908,12 +966,15 @@ class PWLTool:
         # 時間が負にならないように制限
         real_time = max(0, real_time)
 
-        self.pwl_points[self.selected_point] = (real_time, real_value)
+        # 重複しない時間を見つける（現在選択中の点は除外）
+        unique_time = self.find_unique_time(real_time, self.selected_point)
+
+        self.pwl_points[self.selected_point] = (unique_time, real_value)
         self.pwl_points.sort(key=lambda x: x[0])  # 時間順にソート
 
         # ソート後の新しいインデックスを見つける
         for i, (t, v) in enumerate(self.pwl_points):
-            if abs(t - real_time) < 1e-12 and abs(v - real_value) < 1e-12:
+            if abs(t - unique_time) < 1e-12 and abs(v - real_value) < 1e-12:
                 self.selected_point = i
                 break
 
