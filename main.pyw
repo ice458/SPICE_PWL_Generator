@@ -10,7 +10,7 @@ import json
 class PWLTool:
     def __init__(self, root):
         self.root = root
-        self.root.title("LTspice PWL Generator")
+        self.root.title("SPICE PWL Generator")
         self.root.geometry("1200x800")
 
         # PWL点のリスト [(時間, 値)]
