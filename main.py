@@ -38,6 +38,10 @@ class PWLTool:
         # 選択された点のインデックス
         self.selected_point = None
 
+        # パン操作用の変数
+        self.pan_start = None
+        self.panning = False
+
         self.setup_ui()
         self.update_plot()
 
@@ -144,7 +148,7 @@ class PWLTool:
         info_frame = ttk.Frame(main_frame)
         info_frame.pack(fill=tk.X, pady=(5, 0))
 
-        self.info_label = ttk.Label(info_frame, text="Click to select, double-click to add, drag to move, right-click to deselect | Ctrl+/- zoom, arrows pan, Ctrl+0 auto-scale")
+        self.info_label = ttk.Label(info_frame, text="Left: select/drag points, Double-click: add | Wheel: zoom, Wheel+Ctrl/Shift: Y/X zoom, Middle/Right+drag: pan")
         self.info_label.pack(side=tk.LEFT)
 
         # PWL出力テキストエリア
@@ -184,7 +188,7 @@ class PWLTool:
 
             self.info_label.config(text=f"Selected Point {self.selected_point + 1}: ({t_display:.3f} {self.time_unit}, {v_display:.3f} {self.value_unit}) - Press Delete Point to remove")
         else:
-            self.info_label.config(text="Click to select, double-click to add, drag to move, right-click to deselect | Ctrl+/- zoom, arrows pan, Ctrl+0 auto-scale")
+            self.info_label.config(text="Left: select/drag points, Double-click: add | Wheel: zoom, Wheel+Ctrl/Shift: Y/X zoom, Middle/Right+drag: pan")
 
     def on_source_type_change(self, event=None):
         self.source_type = self.source_var.get()
@@ -271,7 +275,7 @@ class PWLTool:
         self.update_range()
 
     def on_scroll(self, event):
-        """マウスホイールでのズーム"""
+        """マウスホイールでのズーム操作"""
         if event.inaxes != self.ax:
             return
 
@@ -285,13 +289,26 @@ class PWLTool:
         if x_center is None or y_center is None:
             return
 
-        x_range = (self.x_max - self.x_min) * zoom_factor / 2
-        y_range = (self.y_max - self.y_min) * zoom_factor / 2
+        # 修飾キーによる動作の分岐
+        if hasattr(event, 'key') and event.key == 'control':
+            # Ctrl+ホイール: 縦軸のみズーム
+            y_range = (self.y_max - self.y_min) * zoom_factor / 2
+            self.y_min_var.set(y_center - y_range)
+            self.y_max_var.set(y_center + y_range)
+        elif hasattr(event, 'key') and event.key == 'shift':
+            # Shift+ホイール: 横軸のみズーム
+            x_range = (self.x_max - self.x_min) * zoom_factor / 2
+            self.x_min_var.set(x_center - x_range)
+            self.x_max_var.set(x_center + x_range)
+        else:
+            # 通常のホイール: 両軸ズーム
+            x_range = (self.x_max - self.x_min) * zoom_factor / 2
+            y_range = (self.y_max - self.y_min) * zoom_factor / 2
+            self.x_min_var.set(x_center - x_range)
+            self.x_max_var.set(x_center + x_range)
+            self.y_min_var.set(y_center - y_range)
+            self.y_max_var.set(y_center + y_range)
 
-        self.x_min_var.set(x_center - x_range)
-        self.x_max_var.set(x_center + x_range)
-        self.y_min_var.set(y_center - y_range)
-        self.y_max_var.set(y_center + y_range)
         self.update_range()
 
     def auto_scale(self):
@@ -377,50 +394,74 @@ class PWLTool:
         if event.inaxes != self.ax:
             return
 
-        # 右クリックで選択解除
-        if event.button == 3:  # 右クリック
+        # 中クリック（ホイールクリック）または右クリックでパン開始
+        if event.button == 2 or event.button == 3:  # 中クリックまたは右クリック
+            self.pan_start = (event.xdata, event.ydata)
+            self.panning = True
+            return
+
+        # 左クリックの処理
+        if event.button == 1:
+            # 近い点を探す
+            if self.pwl_points:
+                time_scale = self.time_prefixes[self.time_unit]
+                if self.source_type == 'Voltage':
+                    value_scale = self.voltage_prefixes[self.value_unit]
+                else:
+                    value_scale = self.current_prefixes[self.value_unit]
+
+                times = [p[0] / time_scale for p in self.pwl_points]
+                values = [p[1] / value_scale for p in self.pwl_points]
+
+                # 最も近い点を探す
+                distances = [(abs(event.xdata - t) + abs(event.ydata - v)) for t, v in zip(times, values)]
+                min_distance = min(distances)
+
+                # 選択の許容範囲
+                tolerance = 0.1 * max(self.x_max - self.x_min, self.y_max - self.y_min)
+
+                if min_distance < tolerance:
+                    self.selected_point = distances.index(min_distance)
+                    self.update_plot()
+                    self.update_info_label()
+                    return
+
+            # 選択された点がない場合は選択解除
             self.selected_point = None
             self.update_plot()
-            return
+            self.update_info_label()
 
-        # 近い点を探す
-        if self.pwl_points:
-            time_scale = self.time_prefixes[self.time_unit]
-            if self.source_type == 'Voltage':
-                value_scale = self.voltage_prefixes[self.value_unit]
-            else:
-                value_scale = self.current_prefixes[self.value_unit]
-
-            times = [p[0] / time_scale for p in self.pwl_points]
-            values = [p[1] / value_scale for p in self.pwl_points]
-
-            # 最も近い点を探す
-            distances = [(abs(event.xdata - t) + abs(event.ydata - v)) for t, v in zip(times, values)]
-            min_distance = min(distances)
-
-            # 選択の許容範囲
-            tolerance = 0.1 * max(self.x_max - self.x_min, self.y_max - self.y_min)
-
-            if min_distance < tolerance:
-                self.selected_point = distances.index(min_distance)
-                self.update_plot()
-                self.update_info_label()
-                return
-
-        # 新しい点を追加
-        if event.dblclick:
-            self.add_point_at(event.xdata, event.ydata)
+            # 新しい点を追加
+            if event.dblclick:
+                self.add_point_at(event.xdata, event.ydata)
 
     def on_motion(self, event):
-        if event.inaxes != self.ax or self.selected_point is None:
+        if event.inaxes != self.ax:
             return
 
-        if event.button == 1:  # 左クリックドラッグ
+        # パン操作中の処理
+        if self.panning and self.pan_start is not None:
+            if event.xdata is not None and event.ydata is not None:
+                dx = self.pan_start[0] - event.xdata
+                dy = self.pan_start[1] - event.ydata
+
+                # 表示範囲を移動
+                self.x_min_var.set(self.x_min + dx)
+                self.x_max_var.set(self.x_max + dx)
+                self.y_min_var.set(self.y_min + dy)
+                self.y_max_var.set(self.y_max + dy)
+                self.update_range()
+            return
+
+        # 点の移動処理
+        if self.selected_point is not None and event.button == 1:  # 左クリックドラッグ
             self.move_point(event.xdata, event.ydata)
 
     def on_release(self, event):
-        # ドラッグ中でなければ選択状態を維持
-        pass
+        # パン操作終了
+        if event.button == 2 or event.button == 3:  # 中クリックまたは右クリック
+            self.panning = False
+            self.pan_start = None
 
     def add_point_at(self, x, y):
         time_scale = self.time_prefixes[self.time_unit]
