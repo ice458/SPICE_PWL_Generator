@@ -6,6 +6,7 @@ from matplotlib.figure import Figure
 import numpy as np
 import json
 
+
 class PWLTool:
     def __init__(self, root):
         self.root = root
@@ -17,19 +18,26 @@ class PWLTool:
 
         # SI接頭語の定義
         self.time_prefixes = {
-            'fs': 1e-15, 'ps': 1e-12, 'ns': 1e-9, 'μs': 1e-6, 'ms': 1e-3, 's': 1
+            "fs": 1e-15,
+            "ps": 1e-12,
+            "ns": 1e-9,
+            "μs": 1e-6,
+            "ms": 1e-3,
+            "s": 1,
         }
-        self.voltage_prefixes = {
-            'μV': 1e-6, 'mV': 1e-3, 'V': 1, 'kV': 1e3
-        }
+        self.voltage_prefixes = {"μV": 1e-6, "mV": 1e-3, "V": 1, "kV": 1e3}
         self.current_prefixes = {
-            'pA': 1e-12, 'nA': 1e-9, 'μA': 1e-6, 'mA': 1e-3, 'A': 1
+            "pA": 1e-12,
+            "nA": 1e-9,
+            "μA": 1e-6,
+            "mA": 1e-3,
+            "A": 1,
         }
 
         # デフォルト単位
-        self.time_unit = 'μs'
-        self.value_unit = 'mV'
-        self.source_type = 'Voltage'  # 'Voltage' or 'Current'
+        self.time_unit = "μs"
+        self.value_unit = "mV"
+        self.source_type = "Voltage"  # 'Voltage' or 'Current'
 
         # 表示範囲
         self.x_min, self.x_max = 0, 10
@@ -60,65 +68,116 @@ class PWLTool:
         control_frame.pack(fill=tk.X, pady=(0, 5))
 
         # ソースタイプ選択
-        ttk.Label(control_frame, text="Source Type:").grid(row=0, column=0, padx=5, sticky="w")
+        ttk.Label(control_frame, text="Source Type:").grid(
+            row=0, column=0, padx=5, sticky="w"
+        )
         self.source_var = tk.StringVar(value=self.source_type)
-        source_combo = ttk.Combobox(control_frame, textvariable=self.source_var,
-                                   values=['Voltage', 'Current'], state='readonly', width=10)
+        source_combo = ttk.Combobox(
+            control_frame,
+            textvariable=self.source_var,
+            values=["Voltage", "Current"],
+            state="readonly",
+            width=10,
+        )
         source_combo.grid(row=0, column=1, padx=5)
-        source_combo.bind('<<ComboboxSelected>>', self.on_source_type_change)
+        source_combo.bind("<<ComboboxSelected>>", self.on_source_type_change)
 
         # 時間単位選択
-        ttk.Label(control_frame, text="Time Unit:").grid(row=0, column=2, padx=5, sticky="w")
+        ttk.Label(control_frame, text="Time Unit:").grid(
+            row=0, column=2, padx=5, sticky="w"
+        )
         self.time_unit_var = tk.StringVar(value=self.time_unit)
-        time_combo = ttk.Combobox(control_frame, textvariable=self.time_unit_var,
-                                 values=list(self.time_prefixes.keys()), state='readonly', width=8)
+        time_combo = ttk.Combobox(
+            control_frame,
+            textvariable=self.time_unit_var,
+            values=list(self.time_prefixes.keys()),
+            state="readonly",
+            width=8,
+        )
         time_combo.grid(row=0, column=3, padx=5)
-        time_combo.bind('<<ComboboxSelected>>', self.on_unit_change)
+        time_combo.bind("<<ComboboxSelected>>", self.on_unit_change)
 
         # 値単位選択
-        ttk.Label(control_frame, text="Value Unit:").grid(row=0, column=4, padx=5, sticky="w")
+        ttk.Label(control_frame, text="Value Unit:").grid(
+            row=0, column=4, padx=5, sticky="w"
+        )
         self.value_unit_var = tk.StringVar(value=self.value_unit)
-        value_combo = ttk.Combobox(control_frame, textvariable=self.value_unit_var,
-                                  values=list(self.voltage_prefixes.keys()), state='readonly', width=8)
+        value_combo = ttk.Combobox(
+            control_frame,
+            textvariable=self.value_unit_var,
+            values=list(self.voltage_prefixes.keys()),
+            state="readonly",
+            width=8,
+        )
         value_combo.grid(row=0, column=5, padx=5)
-        value_combo.bind('<<ComboboxSelected>>', self.on_unit_change)
+        value_combo.bind("<<ComboboxSelected>>", self.on_unit_change)
         self.value_combo = value_combo
 
         # ボタン
-        ttk.Button(control_frame, text="Add Point", command=self.add_point).grid(row=0, column=6, padx=5)
-        ttk.Button(control_frame, text="Delete Point", command=self.delete_point).grid(row=0, column=7, padx=5)
-        ttk.Button(control_frame, text="Generate PWL", command=self.generate_pwl).grid(row=0, column=8, padx=5)
-        ttk.Button(control_frame, text="Save", command=self.save_file).grid(row=0, column=9, padx=5)
-        ttk.Button(control_frame, text="Load", command=self.load_file).grid(row=0, column=10, padx=5)
+        ttk.Button(control_frame, text="Add Point", command=self.add_point).grid(
+            row=0, column=6, padx=5
+        )
+        ttk.Button(control_frame, text="Delete Point", command=self.delete_point).grid(
+            row=0, column=7, padx=5
+        )
+        ttk.Button(control_frame, text="Generate PWL", command=self.generate_pwl).grid(
+            row=0, column=8, padx=5
+        )
+        ttk.Button(control_frame, text="Save", command=self.save_file).grid(
+            row=0, column=9, padx=5
+        )
+        ttk.Button(control_frame, text="Load", command=self.load_file).grid(
+            row=0, column=10, padx=5
+        )
 
         # 第2行: グリッド拘束設定
         # グリッド拘束チェックボックス
         self.grid_snap_var = tk.BooleanVar(value=self.grid_snap_enabled)
-        grid_check = ttk.Checkbutton(control_frame, text="Grid Snap", variable=self.grid_snap_var,
-                                    command=self.on_grid_snap_change)
+        grid_check = ttk.Checkbutton(
+            control_frame,
+            text="Grid Snap",
+            variable=self.grid_snap_var,
+            command=self.on_grid_snap_change,
+        )
         grid_check.grid(row=1, column=0, columnspan=2, padx=5, sticky="w")
 
         # 時間グリッドサイズ
-        ttk.Label(control_frame, text="Time Grid:").grid(row=1, column=2, padx=5, sticky="w")
+        ttk.Label(control_frame, text="Time Grid:").grid(
+            row=1, column=2, padx=5, sticky="w"
+        )
         self.time_grid_var = tk.DoubleVar(value=self.time_grid_size)
-        time_grid_spin = ttk.Spinbox(control_frame, from_=0.001, to=1000, increment=0.1,
-                                    textvariable=self.time_grid_var, width=8,
-                                    command=self.on_grid_size_change)
+        time_grid_spin = ttk.Spinbox(
+            control_frame,
+            from_=0.001,
+            to=1000,
+            increment=0.1,
+            textvariable=self.time_grid_var,
+            width=8,
+            command=self.on_grid_size_change,
+        )
         time_grid_spin.grid(row=1, column=3, padx=5)
-        time_grid_spin.bind('<Return>', lambda e: self.on_grid_size_change())
+        time_grid_spin.bind("<Return>", lambda e: self.on_grid_size_change())
         # グリッドサイズの検証を追加
-        self.time_grid_var.trace('w', self.validate_grid_size)
+        self.time_grid_var.trace("w", self.validate_grid_size)
 
         # 値グリッドサイズ
-        ttk.Label(control_frame, text="Value Grid:").grid(row=1, column=4, padx=5, sticky="w")
+        ttk.Label(control_frame, text="Value Grid:").grid(
+            row=1, column=4, padx=5, sticky="w"
+        )
         self.value_grid_var = tk.DoubleVar(value=self.value_grid_size)
-        value_grid_spin = ttk.Spinbox(control_frame, from_=0.001, to=1000, increment=0.1,
-                                     textvariable=self.value_grid_var, width=8,
-                                     command=self.on_grid_size_change)
+        value_grid_spin = ttk.Spinbox(
+            control_frame,
+            from_=0.001,
+            to=1000,
+            increment=0.1,
+            textvariable=self.value_grid_var,
+            width=8,
+            command=self.on_grid_size_change,
+        )
         value_grid_spin.grid(row=1, column=5, padx=5)
-        value_grid_spin.bind('<Return>', lambda e: self.on_grid_size_change())
+        value_grid_spin.bind("<Return>", lambda e: self.on_grid_size_change())
         # グリッドサイズの検証を追加
-        self.value_grid_var.trace('w', self.validate_grid_size)
+        self.value_grid_var.trace("w", self.validate_grid_size)
 
         # グラフ表示エリア
         plot_frame = ttk.Frame(main_frame)
@@ -142,16 +201,30 @@ class PWLTool:
         self.y_min_var = tk.DoubleVar(value=self.y_min)
 
         ttk.Label(scroll_frame, text="Max:").pack()
-        y_max_spin = ttk.Spinbox(scroll_frame, from_=-1e6, to=1e6, increment=0.1,
-                                textvariable=self.y_max_var, width=8, command=self.update_range)
+        y_max_spin = ttk.Spinbox(
+            scroll_frame,
+            from_=-1e6,
+            to=1e6,
+            increment=0.1,
+            textvariable=self.y_max_var,
+            width=8,
+            command=self.update_range,
+        )
         y_max_spin.pack()
-        y_max_spin.bind('<Return>', lambda e: self.update_range())
+        y_max_spin.bind("<Return>", lambda e: self.update_range())
 
         ttk.Label(scroll_frame, text="Min:").pack()
-        y_min_spin = ttk.Spinbox(scroll_frame, from_=-1e6, to=1e6, increment=0.1,
-                                textvariable=self.y_min_var, width=8, command=self.update_range)
+        y_min_spin = ttk.Spinbox(
+            scroll_frame,
+            from_=-1e6,
+            to=1e6,
+            increment=0.1,
+            textvariable=self.y_min_var,
+            width=8,
+            command=self.update_range,
+        )
         y_min_spin.pack()
-        y_min_spin.bind('<Return>', lambda e: self.update_range())
+        y_min_spin.bind("<Return>", lambda e: self.update_range())
 
         # X軸スクロール
         ttk.Label(scroll_frame, text="X Range").pack(pady=(20, 0))
@@ -159,20 +232,36 @@ class PWLTool:
         self.x_min_var = tk.DoubleVar(value=self.x_min)
 
         ttk.Label(scroll_frame, text="Max:").pack()
-        x_max_spin = ttk.Spinbox(scroll_frame, from_=0, to=1e6, increment=0.1,
-                                textvariable=self.x_max_var, width=8, command=self.update_range)
+        x_max_spin = ttk.Spinbox(
+            scroll_frame,
+            from_=0,
+            to=1e6,
+            increment=0.1,
+            textvariable=self.x_max_var,
+            width=8,
+            command=self.update_range,
+        )
         x_max_spin.pack()
-        x_max_spin.bind('<Return>', lambda e: self.update_range())
+        x_max_spin.bind("<Return>", lambda e: self.update_range())
 
         ttk.Label(scroll_frame, text="Min:").pack()
-        x_min_spin = ttk.Spinbox(scroll_frame, from_=0, to=1e6, increment=0.1,
-                                textvariable=self.x_min_var, width=8, command=self.update_range)
+        x_min_spin = ttk.Spinbox(
+            scroll_frame,
+            from_=0,
+            to=1e6,
+            increment=0.1,
+            textvariable=self.x_min_var,
+            width=8,
+            command=self.update_range,
+        )
         x_min_spin.pack()
-        x_min_spin.bind('<Return>', lambda e: self.update_range())
+        x_min_spin.bind("<Return>", lambda e: self.update_range())
         # X軸最小値の検証を追加
-        self.x_min_var.trace('w', self.validate_x_min)
+        self.x_min_var.trace("w", self.validate_x_min)
 
-        ttk.Button(scroll_frame, text="Auto Scale", command=self.auto_scale).pack(pady=10)
+        ttk.Button(scroll_frame, text="Auto Scale", command=self.auto_scale).pack(
+            pady=10
+        )
         ttk.Button(scroll_frame, text="Zoom In", command=self.zoom_in).pack(pady=2)
         ttk.Button(scroll_frame, text="Zoom Out", command=self.zoom_out).pack(pady=2)
         ttk.Button(scroll_frame, text="Pan Left", command=self.pan_left).pack(pady=2)
@@ -184,35 +273,38 @@ class PWLTool:
         info_frame = ttk.Frame(main_frame)
         info_frame.pack(fill=tk.X, pady=(5, 0))
 
-        self.info_label = ttk.Label(info_frame, text="Left: select/drag points, Double-click: add | Wheel: zoom, Wheel+Ctrl/Shift: Y/X zoom, Middle/Right+drag: pan")
+        self.info_label = ttk.Label(
+            info_frame,
+            text="Left: select/drag points, Double-click: add | Wheel: zoom, Wheel+Ctrl/Shift: Y/X zoom, Middle/Right+drag: pan",
+        )
         self.info_label.pack(side=tk.LEFT)
 
         # PWL出力テキストエリア
-        self.pwl_text = tk.Text(info_frame, height=3, width=50)
+        self.pwl_text = tk.Text(info_frame, height=3, width=70)
         self.pwl_text.pack(side=tk.RIGHT, padx=5)
 
         # テキストエリアの変更を監視
-        self.pwl_text.bind('<KeyRelease>', self.on_pwl_text_change)
-        self.pwl_text.bind('<Button-1>', self.on_pwl_text_focus)  # フォーカス時
+        self.pwl_text.bind("<KeyRelease>", self.on_pwl_text_change)
+        self.pwl_text.bind("<Button-1>", self.on_pwl_text_focus)  # フォーカス時
 
         # PWLテキスト解析用のフラグ
         self.updating_from_plot = False  # プロットからの更新中かどうか
 
         # マウスイベントのバインド
-        self.canvas.mpl_connect('button_press_event', self.on_click)
-        self.canvas.mpl_connect('motion_notify_event', self.on_motion)
-        self.canvas.mpl_connect('button_release_event', self.on_release)
-        self.canvas.mpl_connect('scroll_event', self.on_scroll)
+        self.canvas.mpl_connect("button_press_event", self.on_click)
+        self.canvas.mpl_connect("motion_notify_event", self.on_motion)
+        self.canvas.mpl_connect("button_release_event", self.on_release)
+        self.canvas.mpl_connect("scroll_event", self.on_scroll)
 
         # キーボードショートカット
-        self.root.bind('<Control-plus>', lambda e: self.zoom_in())
-        self.root.bind('<Control-minus>', lambda e: self.zoom_out())
-        self.root.bind('<Control-equal>', lambda e: self.zoom_in())  # +キーのため
-        self.root.bind('<Left>', lambda e: self.safe_pan_left(e))
-        self.root.bind('<Right>', lambda e: self.safe_pan_right(e))
-        self.root.bind('<Up>', lambda e: self.safe_pan_up(e))
-        self.root.bind('<Down>', lambda e: self.safe_pan_down(e))
-        self.root.bind('<Control-0>', lambda e: self.auto_scale())
+        self.root.bind("<Control-plus>", lambda e: self.zoom_in())
+        self.root.bind("<Control-minus>", lambda e: self.zoom_out())
+        self.root.bind("<Control-equal>", lambda e: self.zoom_in())  # +キーのため
+        self.root.bind("<Left>", lambda e: self.safe_pan_left(e))
+        self.root.bind("<Right>", lambda e: self.safe_pan_right(e))
+        self.root.bind("<Up>", lambda e: self.safe_pan_up(e))
+        self.root.bind("<Down>", lambda e: self.safe_pan_down(e))
+        self.root.bind("<Control-0>", lambda e: self.auto_scale())
 
         # フォーカスを設定してキーボードイベントを受け取れるようにする
         self.root.focus_set()
@@ -273,7 +365,10 @@ class PWLTool:
                 self.snap_all_points_to_grid()
         except Exception as e:
             # エラーが発生した場合はデフォルト値に戻す
-            messagebox.showwarning("Grid Size Error", f"Invalid grid size. Reset to default values.\nError: {e}")
+            messagebox.showwarning(
+                "Grid Size Error",
+                f"Invalid grid size. Reset to default values.\nError: {e}",
+            )
             self.time_grid_size = 1.0
             self.value_grid_size = 1.0
             self.time_grid_var.set(self.time_grid_size)
@@ -290,8 +385,12 @@ class PWLTool:
                 return time_display, value_display
 
             # グリッドサイズで丸める
-            snapped_time = round(time_display / self.time_grid_size) * self.time_grid_size
-            snapped_value = round(value_display / self.value_grid_size) * self.value_grid_size
+            snapped_time = (
+                round(time_display / self.time_grid_size) * self.time_grid_size
+            )
+            snapped_value = (
+                round(value_display / self.value_grid_size) * self.value_grid_size
+            )
 
             # 時間は0以上に制限
             snapped_time = max(0, snapped_time)
@@ -307,7 +406,7 @@ class PWLTool:
             return
 
         time_scale = self.time_prefixes[self.time_unit]
-        if self.source_type == 'Voltage':
+        if self.source_type == "Voltage":
             value_scale = self.voltage_prefixes[self.value_unit]
         else:
             value_scale = self.current_prefixes[self.value_unit]
@@ -334,7 +433,7 @@ class PWLTool:
     def update_info_label(self):
         if self.selected_point is not None:
             time_scale = self.time_prefixes[self.time_unit]
-            if self.source_type == 'Voltage':
+            if self.source_type == "Voltage":
                 value_scale = self.voltage_prefixes[self.value_unit]
             else:
                 value_scale = self.current_prefixes[self.value_unit]
@@ -343,22 +442,26 @@ class PWLTool:
             t_display = t / time_scale
             v_display = v / value_scale
 
-            self.info_label.config(text=f"Selected Point {self.selected_point + 1}: ({t_display:.3f} {self.time_unit}, {v_display:.3f} {self.value_unit}) - Press Delete Point to remove")
+            self.info_label.config(
+                text=f"Selected Point {self.selected_point + 1}: ({t_display:.3f} {self.time_unit}, {v_display:.3f} {self.value_unit}) - Press Delete Point to remove"
+            )
         else:
             grid_status = " | Grid: ON" if self.grid_snap_enabled else ""
-            self.info_label.config(text=f"Left: select/drag points, Double-click: add | Wheel: zoom, Wheel+Ctrl/Shift: Y/X zoom, Middle/Right+drag: pan{grid_status}")
+            self.info_label.config(
+                text=f"Left: select/drag points, Double-click: add | Wheel: zoom, Wheel+Ctrl/Shift: Y/X zoom, Middle/Right+drag: pan{grid_status}"
+            )
 
     def on_source_type_change(self, event=None):
         self.source_type = self.source_var.get()
-        if self.source_type == 'Voltage':
-            self.value_combo['values'] = list(self.voltage_prefixes.keys())
+        if self.source_type == "Voltage":
+            self.value_combo["values"] = list(self.voltage_prefixes.keys())
             if self.value_unit not in self.voltage_prefixes:
-                self.value_unit = 'mV'
+                self.value_unit = "mV"
                 self.value_unit_var.set(self.value_unit)
         else:  # Current
-            self.value_combo['values'] = list(self.current_prefixes.keys())
+            self.value_combo["values"] = list(self.current_prefixes.keys())
             if self.value_unit not in self.current_prefixes:
-                self.value_unit = 'mA'
+                self.value_unit = "mA"
                 self.value_unit_var.set(self.value_unit)
         self.update_plot()
 
@@ -451,7 +554,7 @@ class PWLTool:
             return
 
         # ズーム倍率
-        zoom_factor = 0.9 if event.button == 'up' else 1.1
+        zoom_factor = 0.9 if event.button == "up" else 1.1
 
         # マウス位置を中心にズーム
         x_center = event.xdata
@@ -461,12 +564,12 @@ class PWLTool:
             return
 
         # 修飾キーによる動作の分岐
-        if hasattr(event, 'key') and event.key == 'control':
+        if hasattr(event, "key") and event.key == "control":
             # Ctrl+ホイール: 縦軸のみズーム
             y_range = (self.y_max - self.y_min) * zoom_factor / 2
             self.y_min_var.set(y_center - y_range)
             self.y_max_var.set(y_center + y_range)
-        elif hasattr(event, 'key') and event.key == 'shift':
+        elif hasattr(event, "key") and event.key == "shift":
             # Shift+ホイール: 横軸のみズーム
             x_range = (self.x_max - self.x_min) * zoom_factor / 2
             new_x_min = x_center - x_range
@@ -522,7 +625,7 @@ class PWLTool:
         margin = v_range * 0.1 if v_range > 0 else 1
 
         # 単位系に変換
-        if self.source_type == 'Voltage':
+        if self.source_type == "Voltage":
             value_scale = self.voltage_prefixes[self.value_unit]
         else:
             value_scale = self.current_prefixes[self.value_unit]
@@ -540,7 +643,7 @@ class PWLTool:
 
         # 単位系の変換
         time_scale = self.time_prefixes[self.time_unit]
-        if self.source_type == 'Voltage':
+        if self.source_type == "Voltage":
             value_scale = self.voltage_prefixes[self.value_unit]
         else:
             value_scale = self.current_prefixes[self.value_unit]
@@ -550,23 +653,41 @@ class PWLTool:
         values = [p[1] / value_scale for p in self.pwl_points]
 
         # PWL線の描画
-        self.ax.plot(times, values, 'b-', linewidth=2, label='PWL')
+        self.ax.plot(times, values, "b-", linewidth=2, label="PWL")
 
         # 点の描画
         for i, (t, v) in enumerate(zip(times, values)):
             if i == self.selected_point:
                 # 選択された点は赤色で大きく表示
-                self.ax.plot(t, v, 'o', color='red', markersize=12, picker=True, markeredgecolor='darkred', markeredgewidth=2)
+                self.ax.plot(
+                    t,
+                    v,
+                    "o",
+                    color="red",
+                    markersize=12,
+                    picker=True,
+                    markeredgecolor="darkred",
+                    markeredgewidth=2,
+                )
             else:
-                self.ax.plot(t, v, 'o', color='blue', markersize=8, picker=True)
-            self.ax.annotate(f'({t:.3f}, {v:.3f})',
-                           (t, v), xytext=(5, 5), textcoords='offset points', fontsize=8)
+                self.ax.plot(t, v, "o", color="blue", markersize=8, picker=True)
+            self.ax.annotate(
+                f"({t:.3f}, {v:.3f})",
+                (t, v),
+                xytext=(5, 5),
+                textcoords="offset points",
+                fontsize=8,
+            )
 
         # グリッド
         self.ax.grid(True, alpha=0.3)
 
         # グリッド拘束が有効な場合、グリッド線を強調表示
-        if self.grid_snap_enabled and self.time_grid_size > 0 and self.value_grid_size > 0:
+        if (
+            self.grid_snap_enabled
+            and self.time_grid_size > 0
+            and self.value_grid_size > 0
+        ):
             try:
                 # 時間グリッド線
                 x_start = (self.x_min // self.time_grid_size) * self.time_grid_size
@@ -580,7 +701,9 @@ class PWLTool:
                     count += 1
 
                 for x_line in x_grid_lines:
-                    self.ax.axvline(x=x_line, color='gray', linestyle='-', alpha=0.5, linewidth=0.5)
+                    self.ax.axvline(
+                        x=x_line, color="gray", linestyle="-", alpha=0.5, linewidth=0.5
+                    )
 
                 # 値グリッド線
                 y_start = (self.y_min // self.value_grid_size) * self.value_grid_size
@@ -594,16 +717,20 @@ class PWLTool:
                     count += 1
 
                 for y_line in y_grid_lines:
-                    self.ax.axhline(y=y_line, color='gray', linestyle='-', alpha=0.5, linewidth=0.5)
+                    self.ax.axhline(
+                        y=y_line, color="gray", linestyle="-", alpha=0.5, linewidth=0.5
+                    )
             except Exception as e:
                 # グリッド線描画でエラーが発生した場合は無視して続行
                 pass
 
         # 軸ラベル
-        unit_label = self.value_unit if self.source_type == 'Voltage' else self.value_unit
-        self.ax.set_xlabel(f'Time ({self.time_unit})')
-        self.ax.set_ylabel(f'{self.source_type} ({unit_label})')
-        self.ax.set_title(f'PWL {self.source_type} Source')
+        unit_label = (
+            self.value_unit if self.source_type == "Voltage" else self.value_unit
+        )
+        self.ax.set_xlabel(f"Time ({self.time_unit})")
+        self.ax.set_ylabel(f"{self.source_type} ({unit_label})")
+        self.ax.set_title(f"PWL {self.source_type} Source")
 
         # 表示範囲設定
         self.ax.set_xlim(self.x_min, self.x_max)
@@ -627,7 +754,7 @@ class PWLTool:
             # 近い点を探す
             if self.pwl_points:
                 time_scale = self.time_prefixes[self.time_unit]
-                if self.source_type == 'Voltage':
+                if self.source_type == "Voltage":
                     value_scale = self.voltage_prefixes[self.value_unit]
                 else:
                     value_scale = self.current_prefixes[self.value_unit]
@@ -636,7 +763,10 @@ class PWLTool:
                 values = [p[1] / value_scale for p in self.pwl_points]
 
                 # 最も近い点を探す
-                distances = [(abs(event.xdata - t) + abs(event.ydata - v)) for t, v in zip(times, values)]
+                distances = [
+                    (abs(event.xdata - t) + abs(event.ydata - v))
+                    for t, v in zip(times, values)
+                ]
                 min_distance = min(distances)
 
                 # 選択の許容範囲
@@ -696,7 +826,7 @@ class PWLTool:
 
     def add_point_at(self, x, y):
         time_scale = self.time_prefixes[self.time_unit]
-        if self.source_type == 'Voltage':
+        if self.source_type == "Voltage":
             value_scale = self.voltage_prefixes[self.value_unit]
         else:
             value_scale = self.current_prefixes[self.value_unit]
@@ -746,16 +876,20 @@ class PWLTool:
             self.update_plot()
             self.update_info_label()
         elif self.selected_point is None:
-            messagebox.showwarning("No Selection", "Please select a point first by clicking on it.")
+            messagebox.showwarning(
+                "No Selection", "Please select a point first by clicking on it."
+            )
         elif len(self.pwl_points) <= 2:
-            messagebox.showwarning("Minimum Points", "At least 2 points are required for PWL.")
+            messagebox.showwarning(
+                "Minimum Points", "At least 2 points are required for PWL."
+            )
 
     def move_point(self, x, y):
         if self.selected_point is None:
             return
 
         time_scale = self.time_prefixes[self.time_unit]
-        if self.source_type == 'Voltage':
+        if self.source_type == "Voltage":
             value_scale = self.voltage_prefixes[self.value_unit]
         else:
             value_scale = self.current_prefixes[self.value_unit]
@@ -796,10 +930,12 @@ class PWLTool:
             return  # プロットからの更新中は処理しない
 
         # 遅延実行でパースを行う（連続入力に対応）
-        if hasattr(self, '_text_update_timer'):
+        if hasattr(self, "_text_update_timer"):
             self.root.after_cancel(self._text_update_timer)
 
-        self._text_update_timer = self.root.after(500, self.parse_pwl_text)  # 500ms後に実行
+        self._text_update_timer = self.root.after(
+            500, self.parse_pwl_text
+        )  # 500ms後に実行
 
     def parse_pwl_text(self):
         """PWLテキストを解析してグラフを更新"""
@@ -811,7 +947,7 @@ class PWLTool:
                 return
 
             # PWL(...)形式から中身を抽出
-            if pwl_text.startswith('PWL(') and pwl_text.endswith(')'):
+            if pwl_text.startswith("PWL(") and pwl_text.endswith(")"):
                 content = pwl_text[4:-1]  # PWL( と ) を除去
             else:
                 # PWL(...)がない場合は、そのまま数値列として解釈
@@ -828,11 +964,11 @@ class PWLTool:
             for i in range(0, len(parts), 2):
                 try:
                     time_val = float(parts[i])
-                    voltage_val = float(parts[i + 1]);
+                    voltage_val = float(parts[i + 1])
 
                     # 時間が負でないことを確認
                     if time_val < 0:
-                        time_val = 0;
+                        time_val = 0
 
                     new_points.append((time_val, voltage_val))
                 except ValueError:
@@ -893,7 +1029,7 @@ class PWLTool:
                 try:
                     # 新しいテキストの長さを超えない範囲でカーソル位置を復元
                     new_length = len(pwl_cmd)
-                    cursor_row, cursor_col = map(int, cursor_pos.split('.'))
+                    cursor_row, cursor_col = map(int, cursor_pos.split("."))
 
                     # 行数チェック（PWLテキストは通常1行なので1行目に制限）
                     if cursor_row > 1:
@@ -921,21 +1057,21 @@ class PWLTool:
     def save_file(self):
         filename = filedialog.asksaveasfilename(
             defaultextension=".json",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
         )
         if filename:
             data = {
-                'pwl_points': self.pwl_points,
-                'source_type': self.source_type,
-                'time_unit': self.time_unit,
-                'value_unit': self.value_unit,
-                'x_range': [self.x_min, self.x_max],
-                'y_range': [self.y_min, self.y_max],
-                'grid_snap_enabled': self.grid_snap_enabled,
-                'time_grid_size': self.time_grid_size,
-                'value_grid_size': self.value_grid_size
+                "pwl_points": self.pwl_points,
+                "source_type": self.source_type,
+                "time_unit": self.time_unit,
+                "value_unit": self.value_unit,
+                "x_range": [self.x_min, self.x_max],
+                "y_range": [self.y_min, self.y_max],
+                "grid_snap_enabled": self.grid_snap_enabled,
+                "time_grid_size": self.time_grid_size,
+                "value_grid_size": self.value_grid_size,
             }
-            with open(filename, 'w') as f:
+            with open(filename, "w") as f:
                 json.dump(data, f, indent=2)
             messagebox.showinfo("Saved", f"File saved: {filename}")
 
@@ -945,21 +1081,21 @@ class PWLTool:
         )
         if filename:
             try:
-                with open(filename, 'r') as f:
+                with open(filename, "r") as f:
                     data = json.load(f)
 
-                self.pwl_points = data.get('pwl_points', [(0, 0), (1e-6, 0)])
-                self.source_type = data.get('source_type', 'Voltage')
-                self.time_unit = data.get('time_unit', 'μs')
-                self.value_unit = data.get('value_unit', 'mV')
+                self.pwl_points = data.get("pwl_points", [(0, 0), (1e-6, 0)])
+                self.source_type = data.get("source_type", "Voltage")
+                self.time_unit = data.get("time_unit", "μs")
+                self.value_unit = data.get("value_unit", "mV")
 
-                x_range = data.get('x_range', [0, 10])
-                y_range = data.get('y_range', [-5, 5])
+                x_range = data.get("x_range", [0, 10])
+                y_range = data.get("y_range", [-5, 5])
 
                 # グリッド設定の復元
-                self.grid_snap_enabled = data.get('grid_snap_enabled', False)
-                self.time_grid_size = data.get('time_grid_size', 1.0)
-                self.value_grid_size = data.get('value_grid_size', 1.0)
+                self.grid_snap_enabled = data.get("grid_snap_enabled", False)
+                self.time_grid_size = data.get("time_grid_size", 1.0)
+                self.value_grid_size = data.get("value_grid_size", 1.0)
 
                 # UI更新
                 self.source_var.set(self.source_type)
@@ -1027,6 +1163,7 @@ class PWLTool:
 
         # その他の場合は処理する
         return True
+
 
 if __name__ == "__main__":
     root = tk.Tk()
