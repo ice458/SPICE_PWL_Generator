@@ -106,6 +106,8 @@ class PWLTool:
                                     command=self.on_grid_size_change)
         time_grid_spin.grid(row=1, column=3, padx=5)
         time_grid_spin.bind('<Return>', lambda e: self.on_grid_size_change())
+        # グリッドサイズの検証を追加
+        self.time_grid_var.trace('w', self.validate_grid_size)
 
         # 値グリッドサイズ
         ttk.Label(control_frame, text="Value Grid:").grid(row=1, column=4, padx=5, sticky="w")
@@ -115,6 +117,8 @@ class PWLTool:
                                      command=self.on_grid_size_change)
         value_grid_spin.grid(row=1, column=5, padx=5)
         value_grid_spin.bind('<Return>', lambda e: self.on_grid_size_change())
+        # グリッドサイズの検証を追加
+        self.value_grid_var.trace('w', self.validate_grid_size)
 
         # グラフ表示エリア
         plot_frame = ttk.Frame(main_frame)
@@ -215,6 +219,21 @@ class PWLTool:
         except:
             pass
 
+    def validate_grid_size(self, *args):
+        """グリッドサイズが0以下にならないように制限"""
+        try:
+            time_value = self.time_grid_var.get()
+            if time_value <= 0:
+                self.time_grid_var.set(0.001)  # 最小値を0.001に設定
+
+            value_value = self.value_grid_var.get()
+            if value_value <= 0:
+                self.value_grid_var.set(0.001)  # 最小値を0.001に設定
+        except:
+            # エラーが発生した場合はデフォルト値に戻す
+            self.time_grid_var.set(1.0)
+            self.value_grid_var.set(1.0)
+
     def on_grid_snap_change(self):
         """グリッド拘束設定の変更"""
         self.grid_snap_enabled = self.grid_snap_var.get()
@@ -224,25 +243,56 @@ class PWLTool:
 
     def on_grid_size_change(self):
         """グリッドサイズの変更"""
-        self.time_grid_size = self.time_grid_var.get()
-        self.value_grid_size = self.value_grid_var.get()
-        if self.grid_snap_enabled:
-            # 既存の点をグリッドに拘束
-            self.snap_all_points_to_grid()
+        try:
+            # 値を取得し、最小値チェック
+            time_size = self.time_grid_var.get()
+            value_size = self.value_grid_var.get()
+
+            # 0以下の場合は最小値に修正
+            if time_size <= 0:
+                time_size = 0.001
+                self.time_grid_var.set(time_size)
+
+            if value_size <= 0:
+                value_size = 0.001
+                self.value_grid_var.set(value_size)
+
+            # 値を更新
+            self.time_grid_size = time_size
+            self.value_grid_size = value_size
+
+            if self.grid_snap_enabled:
+                # 既存の点をグリッドに拘束
+                self.snap_all_points_to_grid()
+        except Exception as e:
+            # エラーが発生した場合はデフォルト値に戻す
+            messagebox.showwarning("Grid Size Error", f"Invalid grid size. Reset to default values.\nError: {e}")
+            self.time_grid_size = 1.0
+            self.value_grid_size = 1.0
+            self.time_grid_var.set(self.time_grid_size)
+            self.value_grid_var.set(self.value_grid_size)
 
     def snap_to_grid(self, time_display, value_display):
         """値をグリッドに拘束"""
         if not self.grid_snap_enabled:
             return time_display, value_display
 
-        # グリッドサイズで丸める
-        snapped_time = round(time_display / self.time_grid_size) * self.time_grid_size
-        snapped_value = round(value_display / self.value_grid_size) * self.value_grid_size
+        try:
+            # グリッドサイズが0以下の場合は拘束しない
+            if self.time_grid_size <= 0 or self.value_grid_size <= 0:
+                return time_display, value_display
 
-        # 時間は0以上に制限
-        snapped_time = max(0, snapped_time)
+            # グリッドサイズで丸める
+            snapped_time = round(time_display / self.time_grid_size) * self.time_grid_size
+            snapped_value = round(value_display / self.value_grid_size) * self.value_grid_size
 
-        return snapped_time, snapped_value
+            # 時間は0以上に制限
+            snapped_time = max(0, snapped_time)
+
+            return snapped_time, snapped_value
+        except Exception as e:
+            # エラーが発生した場合は元の値を返す
+            return time_display, value_display
 
     def snap_all_points_to_grid(self):
         """全ての点をグリッドに拘束"""
@@ -509,30 +559,38 @@ class PWLTool:
         self.ax.grid(True, alpha=0.3)
 
         # グリッド拘束が有効な場合、グリッド線を強調表示
-        if self.grid_snap_enabled:
-            # 時間グリッド線
-            x_start = (self.x_min // self.time_grid_size) * self.time_grid_size
-            x_grid_lines = []
-            x = x_start
-            while x <= self.x_max:
-                if x >= self.x_min:
-                    x_grid_lines.append(x)
-                x += self.time_grid_size
+        if self.grid_snap_enabled and self.time_grid_size > 0 and self.value_grid_size > 0:
+            try:
+                # 時間グリッド線
+                x_start = (self.x_min // self.time_grid_size) * self.time_grid_size
+                x_grid_lines = []
+                x = x_start
+                count = 0  # 無限ループ防止
+                while x <= self.x_max and count < 1000:  # 最大1000本のグリッド線
+                    if x >= self.x_min:
+                        x_grid_lines.append(x)
+                    x += self.time_grid_size
+                    count += 1
 
-            for x_line in x_grid_lines:
-                self.ax.axvline(x=x_line, color='gray', linestyle='-', alpha=0.5, linewidth=0.5)
+                for x_line in x_grid_lines:
+                    self.ax.axvline(x=x_line, color='gray', linestyle='-', alpha=0.5, linewidth=0.5)
 
-            # 値グリッド線
-            y_start = (self.y_min // self.value_grid_size) * self.value_grid_size
-            y_grid_lines = []
-            y = y_start
-            while y <= self.y_max:
-                if y >= self.y_min:
-                    y_grid_lines.append(y)
-                y += self.value_grid_size
+                # 値グリッド線
+                y_start = (self.y_min // self.value_grid_size) * self.value_grid_size
+                y_grid_lines = []
+                y = y_start
+                count = 0  # 無限ループ防止
+                while y <= self.y_max and count < 1000:  # 最大1000本のグリッド線
+                    if y >= self.y_min:
+                        y_grid_lines.append(y)
+                    y += self.value_grid_size
+                    count += 1
 
-            for y_line in y_grid_lines:
-                self.ax.axhline(y=y_line, color='gray', linestyle='-', alpha=0.5, linewidth=0.5)
+                for y_line in y_grid_lines:
+                    self.ax.axhline(y=y_line, color='gray', linestyle='-', alpha=0.5, linewidth=0.5)
+            except Exception as e:
+                # グリッド線描画でエラーが発生した場合は無視して続行
+                pass
 
         # 軸ラベル
         unit_label = self.value_unit if self.source_type == 'Voltage' else self.value_unit
