@@ -201,10 +201,10 @@ class PWLTool:
         self.root.bind('<Control-plus>', lambda e: self.zoom_in())
         self.root.bind('<Control-minus>', lambda e: self.zoom_out())
         self.root.bind('<Control-equal>', lambda e: self.zoom_in())  # +キーのため
-        self.root.bind('<Left>', lambda e: self.pan_left())
-        self.root.bind('<Right>', lambda e: self.pan_right())
-        self.root.bind('<Up>', lambda e: self.pan_up())
-        self.root.bind('<Down>', lambda e: self.pan_down())
+        self.root.bind('<Left>', lambda e: self.safe_pan_left(e))
+        self.root.bind('<Right>', lambda e: self.safe_pan_right(e))
+        self.root.bind('<Up>', lambda e: self.safe_pan_up(e))
+        self.root.bind('<Down>', lambda e: self.safe_pan_down(e))
         self.root.bind('<Control-0>', lambda e: self.auto_scale())
 
         # フォーカスを設定してキーボードイベントを受け取れるようにする
@@ -865,6 +865,49 @@ class PWLTool:
                 messagebox.showinfo("Loaded", f"File loaded: {filename}")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to load file: {e}")
+
+    def safe_pan_left(self, event):
+        """フォーカスをチェックしてから左にパン"""
+        if self.should_handle_arrow_key(event):
+            self.pan_left()
+
+    def safe_pan_right(self, event):
+        """フォーカスをチェックしてから右にパン"""
+        if self.should_handle_arrow_key(event):
+            self.pan_right()
+
+    def safe_pan_up(self, event):
+        """フォーカスをチェックしてから上にパン"""
+        if self.should_handle_arrow_key(event):
+            self.pan_up()
+
+    def safe_pan_down(self, event):
+        """フォーカスをチェックしてから下にパン"""
+        if self.should_handle_arrow_key(event):
+            self.pan_down()
+
+    def should_handle_arrow_key(self, event):
+        """矢印キーをパン操作で処理すべきかどうかを判定"""
+        focused_widget = self.root.focus_get()
+
+        # フォーカスされているウィジェットがない場合は処理する
+        if focused_widget is None:
+            return True
+
+        # テキストウィジェット（PWL出力エリア）にフォーカスがある場合は処理しない
+        if isinstance(focused_widget, tk.Text):
+            return False
+
+        # Spinboxにフォーカスがある場合は処理しない
+        if isinstance(focused_widget, ttk.Spinbox):
+            return False
+
+        # Entryにフォーカスがある場合は処理しない
+        if isinstance(focused_widget, (tk.Entry, ttk.Entry)):
+            return False
+
+        # その他の場合は処理する
+        return True
 
 if __name__ == "__main__":
     root = tk.Tk()
