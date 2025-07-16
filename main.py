@@ -42,6 +42,11 @@ class PWLTool:
         self.pan_start = None
         self.panning = False
 
+        # グリッド拘束設定
+        self.grid_snap_enabled = False
+        self.time_grid_size = 1.0  # 現在の時間単位での値
+        self.value_grid_size = 1.0  # 現在の値単位での値
+
         self.setup_ui()
         self.update_plot()
 
@@ -85,6 +90,31 @@ class PWLTool:
         ttk.Button(control_frame, text="Generate PWL", command=self.generate_pwl).grid(row=0, column=8, padx=5)
         ttk.Button(control_frame, text="Save", command=self.save_file).grid(row=0, column=9, padx=5)
         ttk.Button(control_frame, text="Load", command=self.load_file).grid(row=0, column=10, padx=5)
+
+        # 第2行: グリッド拘束設定
+        # グリッド拘束チェックボックス
+        self.grid_snap_var = tk.BooleanVar(value=self.grid_snap_enabled)
+        grid_check = ttk.Checkbutton(control_frame, text="Grid Snap", variable=self.grid_snap_var,
+                                    command=self.on_grid_snap_change)
+        grid_check.grid(row=1, column=0, columnspan=2, padx=5, sticky="w")
+
+        # 時間グリッドサイズ
+        ttk.Label(control_frame, text="Time Grid:").grid(row=1, column=2, padx=5, sticky="w")
+        self.time_grid_var = tk.DoubleVar(value=self.time_grid_size)
+        time_grid_spin = ttk.Spinbox(control_frame, from_=0.001, to=1000, increment=0.1,
+                                    textvariable=self.time_grid_var, width=8,
+                                    command=self.on_grid_size_change)
+        time_grid_spin.grid(row=1, column=3, padx=5)
+        time_grid_spin.bind('<Return>', lambda e: self.on_grid_size_change())
+
+        # 値グリッドサイズ
+        ttk.Label(control_frame, text="Value Grid:").grid(row=1, column=4, padx=5, sticky="w")
+        self.value_grid_var = tk.DoubleVar(value=self.value_grid_size)
+        value_grid_spin = ttk.Spinbox(control_frame, from_=0.001, to=1000, increment=0.1,
+                                     textvariable=self.value_grid_var, width=8,
+                                     command=self.on_grid_size_change)
+        value_grid_spin.grid(row=1, column=5, padx=5)
+        value_grid_spin.bind('<Return>', lambda e: self.on_grid_size_change())
 
         # グラフ表示エリア
         plot_frame = ttk.Frame(main_frame)
@@ -185,6 +215,65 @@ class PWLTool:
         except:
             pass
 
+    def on_grid_snap_change(self):
+        """グリッド拘束設定の変更"""
+        self.grid_snap_enabled = self.grid_snap_var.get()
+        if self.grid_snap_enabled:
+            # 既存の点をグリッドに拘束
+            self.snap_all_points_to_grid()
+
+    def on_grid_size_change(self):
+        """グリッドサイズの変更"""
+        self.time_grid_size = self.time_grid_var.get()
+        self.value_grid_size = self.value_grid_var.get()
+        if self.grid_snap_enabled:
+            # 既存の点をグリッドに拘束
+            self.snap_all_points_to_grid()
+
+    def snap_to_grid(self, time_display, value_display):
+        """値をグリッドに拘束"""
+        if not self.grid_snap_enabled:
+            return time_display, value_display
+
+        # グリッドサイズで丸める
+        snapped_time = round(time_display / self.time_grid_size) * self.time_grid_size
+        snapped_value = round(value_display / self.value_grid_size) * self.value_grid_size
+
+        # 時間は0以上に制限
+        snapped_time = max(0, snapped_time)
+
+        return snapped_time, snapped_value
+
+    def snap_all_points_to_grid(self):
+        """全ての点をグリッドに拘束"""
+        if not self.grid_snap_enabled:
+            return
+
+        time_scale = self.time_prefixes[self.time_unit]
+        if self.source_type == 'Voltage':
+            value_scale = self.voltage_prefixes[self.value_unit]
+        else:
+            value_scale = self.current_prefixes[self.value_unit]
+
+        new_points = []
+        for t, v in self.pwl_points:
+            # 表示単位に変換
+            t_display = t / time_scale
+            v_display = v / value_scale
+
+            # グリッドに拘束
+            t_snapped, v_snapped = self.snap_to_grid(t_display, v_display)
+
+            # 実際の値に戻す
+            real_time = t_snapped * time_scale
+            real_value = v_snapped * value_scale
+
+            new_points.append((real_time, real_value))
+
+        self.pwl_points = new_points
+        self.pwl_points.sort(key=lambda x: x[0])  # 時間順にソート
+        self.update_plot()
+
     def update_info_label(self):
         if self.selected_point is not None:
             time_scale = self.time_prefixes[self.time_unit]
@@ -199,7 +288,8 @@ class PWLTool:
 
             self.info_label.config(text=f"Selected Point {self.selected_point + 1}: ({t_display:.3f} {self.time_unit}, {v_display:.3f} {self.value_unit}) - Press Delete Point to remove")
         else:
-            self.info_label.config(text="Left: select/drag points, Double-click: add | Wheel: zoom, Wheel+Ctrl/Shift: Y/X zoom, Middle/Right+drag: pan")
+            grid_status = " | Grid: ON" if self.grid_snap_enabled else ""
+            self.info_label.config(text=f"Left: select/drag points, Double-click: add | Wheel: zoom, Wheel+Ctrl/Shift: Y/X zoom, Middle/Right+drag: pan{grid_status}")
 
     def on_source_type_change(self, event=None):
         self.source_type = self.source_var.get()
@@ -418,6 +508,32 @@ class PWLTool:
         # グリッド
         self.ax.grid(True, alpha=0.3)
 
+        # グリッド拘束が有効な場合、グリッド線を強調表示
+        if self.grid_snap_enabled:
+            # 時間グリッド線
+            x_start = (self.x_min // self.time_grid_size) * self.time_grid_size
+            x_grid_lines = []
+            x = x_start
+            while x <= self.x_max:
+                if x >= self.x_min:
+                    x_grid_lines.append(x)
+                x += self.time_grid_size
+
+            for x_line in x_grid_lines:
+                self.ax.axvline(x=x_line, color='gray', linestyle='-', alpha=0.5, linewidth=0.5)
+
+            # 値グリッド線
+            y_start = (self.y_min // self.value_grid_size) * self.value_grid_size
+            y_grid_lines = []
+            y = y_start
+            while y <= self.y_max:
+                if y >= self.y_min:
+                    y_grid_lines.append(y)
+                y += self.value_grid_size
+
+            for y_line in y_grid_lines:
+                self.ax.axhline(y=y_line, color='gray', linestyle='-', alpha=0.5, linewidth=0.5)
+
         # 軸ラベル
         unit_label = self.value_unit if self.source_type == 'Voltage' else self.value_unit
         self.ax.set_xlabel(f'Time ({self.time_unit})')
@@ -520,9 +636,16 @@ class PWLTool:
         else:
             value_scale = self.current_prefixes[self.value_unit]
 
+        # 表示単位での値
+        t_display = x if x is not None else 0
+        v_display = y if y is not None else 0
+
+        # グリッドに拘束
+        t_display, v_display = self.snap_to_grid(t_display, v_display)
+
         # 単位系を戻す
-        real_time = x * time_scale
-        real_value = y * value_scale
+        real_time = t_display * time_scale
+        real_value = v_display * value_scale
 
         # 時間が負にならないように制限
         real_time = max(0, real_time)
@@ -572,9 +695,16 @@ class PWLTool:
         else:
             value_scale = self.current_prefixes[self.value_unit]
 
+        # 表示単位での値
+        t_display = x if x is not None else 0
+        v_display = y if y is not None else 0
+
+        # グリッドに拘束
+        t_display, v_display = self.snap_to_grid(t_display, v_display)
+
         # 単位系を戻す
-        real_time = x * time_scale
-        real_value = y * value_scale
+        real_time = t_display * time_scale
+        real_value = v_display * value_scale
 
         # 時間が負にならないように制限
         real_time = max(0, real_time)
@@ -627,7 +757,10 @@ class PWLTool:
                 'time_unit': self.time_unit,
                 'value_unit': self.value_unit,
                 'x_range': [self.x_min, self.x_max],
-                'y_range': [self.y_min, self.y_max]
+                'y_range': [self.y_min, self.y_max],
+                'grid_snap_enabled': self.grid_snap_enabled,
+                'time_grid_size': self.time_grid_size,
+                'value_grid_size': self.value_grid_size
             }
             with open(filename, 'w') as f:
                 json.dump(data, f, indent=2)
@@ -650,10 +783,18 @@ class PWLTool:
                 x_range = data.get('x_range', [0, 10])
                 y_range = data.get('y_range', [-5, 5])
 
+                # グリッド設定の復元
+                self.grid_snap_enabled = data.get('grid_snap_enabled', False)
+                self.time_grid_size = data.get('time_grid_size', 1.0)
+                self.value_grid_size = data.get('value_grid_size', 1.0)
+
                 # UI更新
                 self.source_var.set(self.source_type)
                 self.time_unit_var.set(self.time_unit)
                 self.value_unit_var.set(self.value_unit)
+                self.grid_snap_var.set(self.grid_snap_enabled)
+                self.time_grid_var.set(self.time_grid_size)
+                self.value_grid_var.set(self.value_grid_size)
 
                 self.x_min_var.set(x_range[0])
                 self.x_max_var.set(x_range[1])
