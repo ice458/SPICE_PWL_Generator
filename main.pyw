@@ -305,6 +305,9 @@ class PWLTool:
         self.root.bind("<Up>", lambda e: self.safe_pan_up(e))
         self.root.bind("<Down>", lambda e: self.safe_pan_down(e))
         self.root.bind("<Control-0>", lambda e: self.auto_scale())
+        self.root.bind("<Delete>", lambda e: self.safe_delete_point(e))
+        self.root.bind("<f>", lambda e: self.safe_auto_scale(e))
+        self.root.bind("<F>", lambda e: self.safe_auto_scale(e))
 
         # フォーカスを設定してキーボードイベントを受け取れるようにする
         self.root.focus_set()
@@ -1198,8 +1201,45 @@ class PWLTool:
         if self.should_handle_arrow_key(event):
             self.pan_down()
 
+    def safe_delete_point(self, event):
+        """フォーカスをチェックしてから点を削除"""
+        if self.should_handle_key_action(event):
+            self.delete_point()
+
+    def safe_auto_scale(self, event):
+        """フォーカスをチェックしてからオートスケール"""
+        if self.should_handle_key_action(event):
+            self.auto_scale()
+
     def should_handle_arrow_key(self, event):
         """矢印キーをパン操作で処理すべきかどうかを判定"""
+        focused_widget = self.root.focus_get()
+
+        # フォーカスされているウィジェットがない場合は処理する
+        if focused_widget is None:
+            return True
+
+        # テキストウィジェット（PWL出力エリア）にフォーカスがある場合は処理しない
+        if isinstance(focused_widget, tk.Text):
+            return False
+
+        # Spinboxにフォーカスがある場合は処理しない
+        if isinstance(focused_widget, ttk.Spinbox):
+            return False
+
+        # Entryにフォーカスがある場合は処理しない
+        if isinstance(focused_widget, (tk.Entry, ttk.Entry)):
+            return False
+
+        # Comboboxにフォーカスがある場合は処理しない
+        if isinstance(focused_widget, ttk.Combobox):
+            return False
+
+        # その他の場合は処理する
+        return True
+
+    def should_handle_key_action(self, event):
+        """キーアクションを処理すべきかどうかを判定"""
         focused_widget = self.root.focus_get()
 
         # フォーカスされているウィジェットがない場合は処理する
