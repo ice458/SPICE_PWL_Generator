@@ -11,7 +11,9 @@ class PWLTool:
     def __init__(self, root):
         self.root = root
         self.root.title("SPICE PWL Generator")
-        self.root.geometry("1200x800")
+        self.root.geometry("1400x900")
+        # ウィンドウの最小サイズを設定
+        self.root.minsize(1200, 700)
 
         # PWL点のリスト [(時間, 値)]
         self.pwl_points = [(0, 0), (1e-6, 0)]  # 初期値: (0s, 0V), (1μs, 0V)
@@ -193,7 +195,10 @@ class PWLTool:
 
         # スクロールバー
         scroll_frame = ttk.Frame(plot_frame)
-        scroll_frame.pack(side=tk.RIGHT, fill=tk.Y)
+        scroll_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(5, 0))
+        # 右側パネルの最小幅を設定
+        scroll_frame.configure(width=120)
+        scroll_frame.pack_propagate(False)  # 子ウィジェットによるサイズ変更を防ぐ
 
         # Y軸スクロール
         ttk.Label(scroll_frame, text="Y Range").pack()
